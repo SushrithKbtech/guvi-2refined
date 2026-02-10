@@ -366,7 +366,7 @@ Reply with JSON only.`;
 
       const extractBankAccounts = (text) => {
         const matches = [];
-        const regex = /(?:^|[^\d])(\d{9,18})(?!\d)/g;
+        const regex = /(?:^|[^A-Za-z0-9])(\d{9,18})(?!\d)/g;
         let m;
         while ((m = regex.exec(text)) !== null) {
           const digits = m[1];
@@ -671,7 +671,7 @@ Reply with JSON only.`;
           const deptMatches = [];
           const deptRegex = /\b([A-Za-z ]+?(?:Department|Dept|Division|Cell))\b/gi;
           for (const m of text.matchAll(deptRegex)) {
-            const val = m[1].trim();
+            const val = m[1].trim().replace(/^(this is|it is|the)\s+/i, '').trim();
             if (val.length >= 4 && !/account|bank/i.test(val)) {
               deptMatches.push(val);
             }
@@ -694,9 +694,22 @@ Reply with JSON only.`;
           const nameMatches = [];
           const nameRegex = /\b(my name is|this is)\b\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,2})\b/gi;
           for (const m of text.matchAll(nameRegex)) {
-            nameMatches.push(m[2].trim());
+            const candidate = m[2].trim();
+            if (!/(department|desk|team|cell|division|bank|support|fraud)/i.test(candidate)) {
+              nameMatches.push(candidate);
+            }
           }
           enriched.scammerNames = getUnique(nameMatches);
+        }
+
+        // Suspicious keywords from text
+        if (!enriched.suspiciousKeywords || enriched.suspiciousKeywords.length === 0) {
+          const keywords = [];
+          const keywordRegex = /\b(urgent|immediately|now|asap|right away|right now|blocked|block|suspended|suspend|freeze|frozen|within \d+ (?:minutes?|hours?)|in \d+ (?:minutes?|hours?)|verify|verification|kyc)\b/gi;
+          for (const m of text.matchAll(keywordRegex)) {
+            keywords.push(m[1]);
+          }
+          enriched.suspiciousKeywords = getUnique(keywords.map(k => k.toLowerCase()));
         }
 
         return enriched;
@@ -1083,6 +1096,25 @@ Reply with JSON only.`;
         return (text.slice(0, firstIdx + 1) + text.slice(firstIdx + 1).replace(/\?/g, '.')).trim();
       };
 
+      const computeScamDetected = (text, intelSignals) => {
+        const lower = text.toLowerCase();
+        let score = 0;
+
+        const otpRequested = /\b(otp|one time password|pin|password|cvv|mpin|upi pin)\b/.test(lower) &&
+          /\b(share|send|provide|tell|give)\b/.test(lower);
+        if (otpRequested) score += 3;
+
+        if (/\b(urgent|immediately|right away|right now|asap|within \d+ (?:minutes?|hours?)|in \d+ (?:minutes?|hours?))\b/.test(lower)) score += 1;
+        if (/\b(block|blocked|suspend|suspended|freeze|frozen|lock|locked)\b/.test(lower)) score += 1;
+        if (/\b(verify|verification|kyc|account number|bank details)\b/.test(lower)) score += 1;
+        if (/\b(upi pin)\b/.test(lower)) score += 2;
+        if ((intelSignals.phishingLinks || []).length > 0) score += 2;
+        if ((intelSignals.upiIds || []).length > 0) score += 1;
+        if ((intelSignals.callbackNumbers || []).length > 0 && /\bcall\b/.test(lower)) score += 1;
+
+        return score >= 2;
+      };
+
       const ensureSelfVerifyJustification = (text) => {
         if (!text || !text.includes('?')) return text;
         const lower = text.toLowerCase();
@@ -1105,7 +1137,7 @@ Reply with JSON only.`;
       const generatedNotes = buildAgentNotes(
         enrichedIntelSignals,
         combinedScammerText,
-        !!agentResponse.scamDetected,
+        true,
         turnNumber,
         normalizedPrettyAmounts
       );
@@ -1121,7 +1153,7 @@ Reply with JSON only.`;
       const finalResponse = {
         reply,
         phase: agentResponse.phase || "VERIFICATION",
-        scamDetected: agentResponse.scamDetected || false,
+        scamDetected: computeScamDetected(combinedScammerText, enrichedIntelSignals),
         intelSignals: enrichedIntelSignals,
         agentNotes: generatedNotes || agentResponse.agentNotes || "",
         shouldTerminate: agentResponse.shouldTerminate || false,
