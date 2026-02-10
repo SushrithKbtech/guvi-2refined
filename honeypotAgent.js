@@ -18,7 +18,7 @@ class HoneypotAgent {
     console.log('⏱️ Agent.generateResponse started');
 
     // Build conversation context
-    const conversationContext = conversationHistory.slice(-5).map((msg, idx) =>
+    const conversationContext = conversationHistory.map((msg, idx) =>
       `Turn ${idx + 1}:\nScammer: ${msg.scammerMessage}\nYou: ${msg.agentReply || '(first message)'}`
     ).join('\n\n');
 
@@ -463,6 +463,32 @@ ${!addedTopics.has('fee') ? '✓ Fee/payment amount' : ''}
 
 Generate JSON:`;
 
+    // START REGEX EXTRACTION HELPER
+    const scanHistoryForIntel = (history, currentMsg) => {
+      const fullText = history.map(h => `${h.scammerMessage} ${h.agentReply}`).join(' ') + ' ' + currentMsg;
+
+      const uniqueMatches = (regex) => {
+        const matches = fullText.match(regex) || [];
+        return [...new Set(matches)];
+      };
+
+      return {
+        phoneNumbers: uniqueMatches(/(?:\+91[\-\s]?)?[6-9]\d{9}\b/g),
+        emailAddresses: uniqueMatches(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g),
+        upiIds: uniqueMatches(/[a-zA-Z0-9.\-_]{2,256}@[a-zA-Z]{2,64}/g),
+        ifscCodes: uniqueMatches(/[A-Z]{4}0[A-Z0-9]{6}/g),
+        bankAccounts: uniqueMatches(/\b\d{9,18}\b/g).filter(n => n.length > 6 && !/^[6-9]\d{9}$/.test(n)), // Filter out phones
+        amounts: uniqueMatches(/(?:rs\.?|inr|₹)\s*[\d,.]+(?:k| lakh)?/ig),
+        complaintIds: uniqueMatches(/\b(case|ref|complaint|challan|consignment).*?([A-Z0-9-]{4,})/ig)
+          .map(m => {
+            const extraction = m.match(/([A-Z0-9-]{4,})$/i);
+            return extraction ? extraction[1] : null;
+          }).filter(x => x && x.length > 3),
+        urls: uniqueMatches(/https?:\/\/[^\s]+/g)
+      };
+    };
+    // END REGEX EXTRACTION HELPER
+
     try {
       console.log('⏱️ Calling OpenAI...');
 
@@ -484,6 +510,38 @@ Generate JSON:`;
 
       const agentResponse = JSON.parse(rawResponse);
 
+      const getUnique = (arr) => [...new Set(arr || [])];
+
+      // 1. Get LLM extraction
+      const llmIntel = agentResponse.intelSignals || {};
+
+      // 2. Get Regex extraction from FULL history
+      const regexIntel = scanHistoryForIntel(conversationHistory, scammerMessage);
+
+      // 3. Merge both (Code-side Regex supplements LLM)
+      const mergedIntel = {
+        bankAccounts: getUnique([...(llmIntel.bankAccounts || []), ...regexIntel.bankAccounts]),
+        accountLast4: llmIntel.accountLast4,
+        complaintIds: getUnique([...(llmIntel.complaintIds || []), ...regexIntel.complaintIds]),
+        employeeIds: llmIntel.employeeIds,
+        phoneNumbers: getUnique([...(llmIntel.phoneNumbers || []), ...regexIntel.phoneNumbers]),
+        callbackNumbers: getUnique([...(llmIntel.callbackNumbers || []), ...regexIntel.phoneNumbers]),
+        upiIds: getUnique([...(llmIntel.upiIds || []), ...regexIntel.upiIds]),
+        phishingLinks: getUnique([...(llmIntel.phishingLinks || []), ...regexIntel.urls]),
+        emailAddresses: getUnique([...(llmIntel.emailAddresses || []), ...regexIntel.emailAddresses]),
+        appNames: llmIntel.appNames,
+        transactionIds: llmIntel.transactionIds,
+        merchantNames: llmIntel.merchantNames,
+        amounts: getUnique([...(llmIntel.amounts || []), ...regexIntel.amounts]),
+        ifscCodes: getUnique([...(llmIntel.ifscCodes || []), ...regexIntel.ifscCodes]),
+        departmentNames: llmIntel.departmentNames,
+        designations: llmIntel.designations,
+        supervisorNames: llmIntel.supervisorNames,
+        scammerNames: llmIntel.scammerNames,
+        orgNames: llmIntel.orgNames,
+        suspiciousKeywords: llmIntel.suspiciousKeywords
+      };
+
       const normalizeList = (value) => {
         if (!Array.isArray(value)) return [];
         const cleaned = value
@@ -494,34 +552,14 @@ Generate JSON:`;
 
       const normalizeIntelSignals = (intel) => {
         const safe = intel || {};
-        const normalized = {
-          bankAccounts: normalizeList(safe.bankAccounts),
-          accountLast4: normalizeList(safe.accountLast4),
-          complaintIds: normalizeList(safe.complaintIds),
-          employeeIds: normalizeList(safe.employeeIds),
-          phoneNumbers: normalizeList(safe.phoneNumbers),
-          callbackNumbers: normalizeList(safe.callbackNumbers),
-          upiIds: normalizeList(safe.upiIds),
-          phishingLinks: normalizeList(safe.phishingLinks),
-          emailAddresses: normalizeList(safe.emailAddresses),
-          appNames: normalizeList(safe.appNames),
-          transactionIds: normalizeList(safe.transactionIds),
-          merchantNames: normalizeList(safe.merchantNames),
-          amounts: normalizeList(safe.amounts),
-          ifscCodes: normalizeList(safe.ifscCodes),
-          departmentNames: normalizeList(safe.departmentNames),
-          designations: normalizeList(safe.designations),
-          supervisorNames: normalizeList(safe.supervisorNames),
-          scammerNames: normalizeList(safe.scammerNames),
-          orgNames: normalizeList(safe.orgNames),
-          suspiciousKeywords: normalizeList(safe.suspiciousKeywords),
-        };
-
-        const mergedPhones = [...new Set([...normalized.phoneNumbers, ...normalized.callbackNumbers])];
-        normalized.phoneNumbers = mergedPhones;
-        normalized.callbackNumbers = mergedPhones;
+        const normalized = {};
+        for (const key in safe) {
+          normalized[key] = normalizeList(safe[key]);
+        }
         return normalized;
       };
+
+      const normalizedIntelSignals = normalizeIntelSignals(mergedIntel);
 
       const buildAgentNotes = (intelSignals, combinedScammerText, scamDetected, turnNumber) => {
         // Detect scam type based on content
@@ -817,7 +855,6 @@ Generate JSON:`;
         return parts.join(' ');
       };
 
-      const normalizedIntelSignals = normalizeIntelSignals(agentResponse.intelSignals || {});
       const combinedScammerText = [
         ...(conversationHistory || []).map(msg => msg.scammerMessage || ''),
         scammerMessage || ''
