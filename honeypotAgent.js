@@ -18,7 +18,8 @@ class HoneypotAgent {
     console.log('â±ï¸ Agent.generateResponse started');
 
     const totalMessages = conversationHistory.length;
-    const turnNumber = totalMessages + 1;
+    const scammerTurns = (conversationHistory || []).filter(m => m && m.scammerMessage).length;
+    const turnNumber = scammerTurns + 1;
 
     // Build compact conversation context (speed)
     const maxContextTurns = 4;
@@ -617,6 +618,92 @@ Reply with JSON only.`;
         (prettyAmountCandidates || []).map(v => String(v || '').trim()).filter(Boolean)
       );
 
+      const combinedScammerText = [
+        ...(conversationHistory || []).map(msg => msg.scammerMessage || ''),
+        scammerMessage || ''
+      ].join(' ');
+
+      const enrichIntelSignals = (intel, text) => {
+        const enriched = { ...intel };
+
+        // Derive accountLast4 from bankAccounts if missing
+        if ((!enriched.accountLast4 || enriched.accountLast4.length === 0) && enriched.bankAccounts && enriched.bankAccounts.length > 0) {
+          enriched.accountLast4 = getUnique(enriched.bankAccounts.map(n => String(n).slice(-4)));
+        }
+
+        // Remove complaintIds that are substrings of known bank accounts (common false positives)
+        if (enriched.complaintIds && enriched.bankAccounts && enriched.bankAccounts.length > 0) {
+          const accountSet = new Set(enriched.bankAccounts.map(a => String(a)));
+          enriched.complaintIds = enriched.complaintIds.filter(id => {
+            const idStr = String(id);
+            for (const acc of accountSet) {
+              if (acc.includes(idStr)) return false;
+            }
+            return true;
+          });
+        }
+
+        // Org names from text
+        if (!enriched.orgNames || enriched.orgNames.length === 0) {
+          const orgMatches = [];
+          const orgPatterns = [
+            /\bSBI\b|\bState Bank\b/gi,
+            /\bHDFC\b/gi,
+            /\bICICI\b/gi,
+            /\bAxis\b/gi,
+            /\bPNB\b|\bPunjab National\b/gi,
+            /\bBank of Baroda\b|\bBoB\b/gi,
+            /\bCanara\b/gi,
+            /\bUnion Bank\b/gi,
+            /\bKotak\b/gi,
+            /\bIndusInd\b/gi,
+            /\bBank of India\b|\bBOI\b/gi
+          ];
+          orgPatterns.forEach(pattern => {
+            const m = text.match(pattern);
+            if (m) orgMatches.push(...m.map(v => v.trim()));
+          });
+          enriched.orgNames = getUnique(orgMatches);
+        }
+
+        // Department names from text
+        if (!enriched.departmentNames || enriched.departmentNames.length === 0) {
+          const deptMatches = [];
+          const deptRegex = /\b([A-Za-z ]+?(?:Department|Dept|Division|Cell))\b/gi;
+          for (const m of text.matchAll(deptRegex)) {
+            const val = m[1].trim();
+            if (val.length >= 4 && !/account|bank/i.test(val)) {
+              deptMatches.push(val);
+            }
+          }
+          enriched.departmentNames = getUnique(deptMatches);
+        }
+
+        // Supervisor names from text
+        if (!enriched.supervisorNames || enriched.supervisorNames.length === 0) {
+          const supMatches = [];
+          const supRegex = /\b(supervisor|manager)\b[^.:\n]{0,40}?\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,2})\b/g;
+          for (const m of text.matchAll(supRegex)) {
+            supMatches.push(m[2].trim());
+          }
+          enriched.supervisorNames = getUnique(supMatches);
+        }
+
+        // Scammer names from text
+        if (!enriched.scammerNames || enriched.scammerNames.length === 0) {
+          const nameMatches = [];
+          const nameRegex = /\b(my name is|this is)\b\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,2})\b/gi;
+          for (const m of text.matchAll(nameRegex)) {
+            nameMatches.push(m[2].trim());
+          }
+          enriched.scammerNames = getUnique(nameMatches);
+        }
+
+        return enriched;
+      };
+
+      const enrichedIntelSignals = enrichIntelSignals(normalizedIntelSignals, combinedScammerText);
+
       const buildAgentNotes = (intelSignals, combinedScammerText, scamDetected, turnNumber, prettyAmounts) => {
         // Detect scam type based on content
         let scamType = 'Unknown';
@@ -770,7 +857,7 @@ Reply with JSON only.`;
         if (/\b(tracking.*number|consignment.*no|AWB|docket.*no|reference.*no)\b/i.test(combinedScammerText)) {
           requests.push('tracking/reference number');
         }
-        if (/\b(consumer.*number|account.*id|customer.*id|service.*number)\b/i.test(combinedScammerText)) {
+        if (/\b(consumer\s*(number|id)|customer\s*id|service\s*number|account\s*id)\b/i.test(combinedScammerText)) {
           requests.push('consumer/account ID');
         }
         parts.push(`Scammer requests: ${requests.length > 0 ? requests.join(', ') : 'None detected'}.`);
@@ -1015,12 +1102,8 @@ Reply with JSON only.`;
         return updated;
       };
 
-      const combinedScammerText = [
-        ...(conversationHistory || []).map(msg => msg.scammerMessage || ''),
-        scammerMessage || ''
-      ].join(' ');
       const generatedNotes = buildAgentNotes(
-        normalizedIntelSignals,
+        enrichedIntelSignals,
         combinedScammerText,
         !!agentResponse.scamDetected,
         turnNumber,
@@ -1039,7 +1122,7 @@ Reply with JSON only.`;
         reply,
         phase: agentResponse.phase || "VERIFICATION",
         scamDetected: agentResponse.scamDetected || false,
-        intelSignals: normalizedIntelSignals,
+        intelSignals: enrichedIntelSignals,
         agentNotes: generatedNotes || agentResponse.agentNotes || "",
         shouldTerminate: agentResponse.shouldTerminate || false,
         terminationReason: agentResponse.terminationReason || ""
