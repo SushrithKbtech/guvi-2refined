@@ -1,0 +1,290 @@
+:root {
+  --bg0: #0b1220;
+  --bg1: #0f1a31;
+  --card: rgba(255, 255, 255, 0.92);
+  --cardBorder: rgba(255, 255, 255, 0.18);
+  --shadow: 0 18px 60px rgba(0, 0, 0, 0.35);
+
+  --text: #0f172a;
+  --muted: rgba(15, 23, 42, 0.65);
+
+  --bubbleScammer: #f3f4f6;
+  --bubbleScammerBorder: rgba(15, 23, 42, 0.10);
+  --bubbleHoneypot: #e8f8df;
+  --bubbleHoneypotBorder: rgba(16, 185, 129, 0.22);
+
+  --primary: #2563eb;
+  --primaryHover: #1d4ed8;
+  --ring: rgba(37, 99, 235, 0.35);
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: "IBM Plex Sans", sans-serif;
+  color: var(--text);
+  background: radial-gradient(1200px 700px at 18% 10%, rgba(99, 102, 241, 0.25), transparent 65%),
+              radial-gradient(900px 600px at 85% 30%, rgba(16, 185, 129, 0.18), transparent 60%),
+              linear-gradient(180deg, var(--bg0), var(--bg1));
+}
+
+.bg {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.55;
+  background-image:
+    radial-gradient(rgba(255,255,255,0.06) 1px, transparent 1px);
+  background-size: 22px 22px;
+  mask-image: radial-gradient(circle at 40% 15%, rgba(0,0,0,1), rgba(0,0,0,0) 70%);
+}
+
+.wrap {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  padding: 28px 18px 26px;
+  max-width: 980px;
+  margin: 0 auto;
+}
+
+.topbar {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  color: rgba(255, 255, 255, 0.92);
+  margin-bottom: 14px;
+}
+
+.title {
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+}
+
+.subtitle {
+  font-size: 13px;
+  margin-top: 4px;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.actions {
+  display: flex;
+  gap: 10px;
+}
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--cardBorder);
+  border-radius: 18px;
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 70vh;
+}
+
+.chat {
+  flex: 1;
+  padding: 18px 16px 8px;
+  overflow: auto;
+}
+
+.msg {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  margin: 10px 0 14px;
+  max-width: 92%;
+}
+
+.msg.honeypot {
+  margin-left: 6px;
+}
+
+.meta {
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.7px;
+  text-transform: uppercase;
+  color: rgba(15, 23, 42, 0.55);
+  margin-bottom: 6px;
+}
+
+.bubble {
+  width: fit-content;
+  max-width: 720px;
+  padding: 11px 12px;
+  border-radius: 14px;
+  line-height: 1.45;
+  font-size: 14px;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  border: 1px solid transparent;
+}
+
+.msg.scammer .bubble {
+  background: var(--bubbleScammer);
+  border-color: var(--bubbleScammerBorder);
+}
+
+.msg.honeypot .bubble {
+  background: var(--bubbleHoneypot);
+  border-color: var(--bubbleHoneypotBorder);
+}
+
+.composer {
+  padding: 14px 14px 16px;
+  border-top: 1px solid rgba(15, 23, 42, 0.08);
+  background: rgba(255, 255, 255, 0.82);
+  backdrop-filter: blur(8px);
+}
+
+.label {
+  display: block;
+  font-family: "Space Grotesk", sans-serif;
+  font-weight: 600;
+  font-size: 12px;
+  color: rgba(15, 23, 42, 0.68);
+  margin-bottom: 8px;
+}
+
+.composerRow {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 12px;
+  align-items: end;
+}
+
+.input {
+  width: 100%;
+  resize: none;
+  padding: 11px 12px;
+  border: 1px solid rgba(15, 23, 42, 0.18);
+  border-radius: 12px;
+  outline: none;
+  font-family: "IBM Plex Sans", sans-serif;
+  font-size: 14px;
+  line-height: 1.35;
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 0 0 rgba(0,0,0,0);
+  transition: box-shadow 160ms ease, border-color 160ms ease;
+}
+
+.input:focus {
+  border-color: rgba(37, 99, 235, 0.55);
+  box-shadow: 0 0 0 4px var(--ring);
+}
+
+.btn {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-family: "Space Grotesk", sans-serif;
+  font-weight: 600;
+  font-size: 13px;
+  letter-spacing: 0.2px;
+  cursor: pointer;
+  transition: transform 120ms ease, background 140ms ease, border-color 140ms ease, opacity 140ms ease;
+  user-select: none;
+}
+
+.btn:active { transform: translateY(1px); }
+
+.btn-ghost {
+  background: rgba(255, 255, 255, 0.10);
+  border-color: rgba(255, 255, 255, 0.16);
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.btn-ghost:hover {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.btn-primary {
+  position: relative;
+  background: var(--primary);
+  border-color: rgba(0,0,0,0);
+  color: white;
+  min-width: 98px;
+}
+
+.btn-primary:hover { background: var(--primaryHover); }
+
+.btn-primary[disabled] {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.spinner {
+  display: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  border: 2px solid rgba(255,255,255,0.45);
+  border-top-color: rgba(255,255,255,0.98);
+  animation: spin 0.8s linear infinite;
+  margin-left: 8px;
+}
+
+.btn-primary.loading .spinner { display: inline-block; }
+
+.hint {
+  margin-top: 10px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.debug {
+  margin-top: 12px;
+  color: rgba(255, 255, 255, 0.88);
+}
+
+.debug details {
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 14px;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.debug summary {
+  font-family: "Space Grotesk", sans-serif;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.intel {
+  margin: 10px 0 0;
+  padding: 10px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.22);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  overflow: auto;
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@media (max-width: 640px) {
+  .wrap { padding: 18px 12px 18px; }
+  .card { min-height: 72vh; }
+  .bubble { max-width: 100%; }
+  .composerRow { grid-template-columns: 1fr; }
+  .btn-primary { width: 100%; }
+  .actions { display: none; }
+}
+

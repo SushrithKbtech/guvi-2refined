@@ -6,6 +6,7 @@
 const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
+const path = require('path');
 require('dotenv').config();
 
 const HoneypotAgent = require('./honeypotAgent');
@@ -18,6 +19,13 @@ const GUVI_CALLBACK_URL = 'https://hackathon.guvi.in/api/updateHoneyPotFinalResu
 // Middleware
 app.use(cors());
 app.use(express.json());
+
+// Demo UI (for video demos)
+const DEMO_DIR = path.join(__dirname, 'public', 'demo');
+app.use('/demo/static', express.static(DEMO_DIR));
+app.get('/demo', (req, res) => {
+    res.sendFile(path.join(DEMO_DIR, 'index.html'));
+});
 
 // API Key authentication middleware
 const authenticateApiKey = (req, res, next) => {
@@ -66,6 +74,54 @@ app.get('/health', (req, res) => {
         uptime: process.uptime(),
         timestamp: new Date().toISOString()
     });
+});
+
+/**
+ * Demo conversation endpoint (no API key, no GUVI callback)
+ * POST /demo/api/conversation
+ */
+app.post('/demo/api/conversation', async (req, res) => {
+    try {
+        const {
+            message = { text: "Hello", sender: "scammer" },
+            conversationHistory = []
+        } = req.body || {};
+
+        const scammerText = (message && message.text) ? String(message.text) : "Hello";
+
+        // Build conversation history for agent
+        const agentHistory = (conversationHistory || []).map(msg => ({
+            timestamp: msg.timestamp,
+            scammerMessage: msg.sender === 'scammer' ? msg.text : '',
+            agentReply: msg.sender === 'user' ? msg.text : '',
+            stressScore: 5
+        }));
+
+        const stressScore = Math.min(10, 5 + Math.floor(agentHistory.length / 2));
+        const nextIntent = agentHistory.length === 0 ? 'request_details' :
+            agentHistory.length < 3 ? 'request_details' :
+                agentHistory.length < 6 ? 'maintain_conversation' :
+                    'maintain_conversation';
+
+        const response = await agent.generateResponse(
+            scammerText,
+            agentHistory,
+            nextIntent,
+            stressScore
+        );
+
+        return res.json({
+            status: 'success',
+            reply: response.reply,
+            full: response
+        });
+    } catch (error) {
+        console.error('ERROR in demo conversation handler:', error);
+        return res.status(500).json({
+            status: 'error',
+            message: 'Failed to process demo conversation request'
+        });
+    }
 });
 
 /**

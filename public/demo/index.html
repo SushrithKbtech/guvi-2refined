@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>GUVI Honeypot Demo</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/demo/static/styles.css" />
+  </head>
+  <body>
+    <div class="bg" aria-hidden="true"></div>
+    <main class="wrap">
+      <header class="topbar">
+        <div>
+          <div class="title">GUVI Honeypot Demo</div>
+          <div class="subtitle">Clean chat view for video demos (no markdown stars, aligned bubbles).</div>
+        </div>
+        <div class="actions">
+          <button id="resetBtn" class="btn btn-ghost" type="button">Reset</button>
+          <button id="sampleBtn" class="btn btn-ghost" type="button">Run Sample</button>
+        </div>
+      </header>
+
+      <section class="card">
+        <div class="chat" id="chat" role="log" aria-live="polite" aria-relevant="additions"></div>
+
+        <div class="composer">
+          <label class="label" for="scammerInput">Scammer message</label>
+          <div class="composerRow">
+            <textarea id="scammerInput" class="input" rows="2" placeholder="Type the scammer SMS/message here..."></textarea>
+            <button id="sendBtn" class="btn btn-primary" type="button">
+              <span class="btnText">Send</span>
+              <span class="spinner" aria-hidden="true"></span>
+            </button>
+          </div>
+          <div class="hint">
+            Tip: keep messages short. The honeypot reply will always be 1-2 sentences with exactly one question.
+          </div>
+        </div>
+      </section>
+
+      <section class="debug">
+        <details>
+          <summary>Show extracted intel</summary>
+          <pre id="intel" class="intel"></pre>
+        </details>
+      </section>
+    </main>
+
+    <script src="/demo/static/app.js"></script>
+  </body>
+</html>
+
